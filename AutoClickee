@@ -1,0 +1,113 @@
+import sys
+import threading
+import time
+from PyQt5.QtWidgets import (
+    QApplication, QVBoxLayout, QLabel, QSpinBox, QComboBox, QPushButton, QWidget
+)
+from PyQt5.QtCore import Qt
+from pynput.mouse import Controller, Button
+from pynput import keyboard
+
+class AutoClicker:
+    def __init__(self):
+        self.clicking = False
+        self.button = Button.left  # Default to left mouse button
+        self.interval = 0.1  # Default click interval in seconds
+        self.mouse = Controller()
+
+    def start_clicking(self):
+        while self.clicking:
+            self.mouse.click(self.button)
+            time.sleep(self.interval)
+
+    def toggle_click(self, clicking: bool):
+        self.clicking = clicking
+        if self.clicking:
+            thread = threading.Thread(target=self.start_clicking)
+            thread.daemon = True
+            thread.start()
+
+# GUI Class
+class AutoClickerApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Autoclicker")
+        self.setFixedSize(300, 200)
+        self.auto_clicker = AutoClicker()
+        self.initUI()
+
+        # Register Hotkey to Toggle Clicking
+        self.listener = keyboard.Listener(on_press=self.on_key_press)
+        self.listener.start()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+
+        # Label and Spin Box for Interval
+        self.interval_label = QLabel("Click Interval (ms):", self)
+        layout.addWidget(self.interval_label)
+        self.interval_input = QSpinBox(self)
+        self.interval_input.setRange(1, 10000)
+        self.interval_input.setValue(100)
+        self.interval_input.valueChanged.connect(self.update_interval)
+        layout.addWidget(self.interval_input)
+
+        # Label and Dropdown for Mouse Button
+        self.button_label = QLabel("Mouse Button:", self)
+        layout.addWidget(self.button_label)
+        self.button_select = QComboBox(self)
+        self.button_select.addItems(["Left", "Right", "Middle"])
+        self.button_select.currentTextChanged.connect(self.update_button)
+        layout.addWidget(self.button_select)
+
+        # Start/Stop Button
+        self.start_stop_button = QPushButton("Start", self)
+        self.start_stop_button.clicked.connect(self.toggle_clicking)
+        layout.addWidget(self.start_stop_button)
+
+        # Hotkey Info
+        self.hotkey_label = QLabel("Press 'P' to toggle clicking", self)
+        self.hotkey_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.hotkey_label)
+
+        self.setLayout(layout)
+
+    def update_interval(self):
+        self.auto_clicker.interval = self.interval_input.value() / 1000  # Convert ms to seconds
+
+    def update_button(self):
+        button = self.button_select.currentText()
+        if button == "Left":
+            self.auto_clicker.button = Button.left
+        elif button == "Right":
+            self.auto_clicker.button = Button.right
+        elif button == "Middle":
+            self.auto_clicker.button = Button.middle
+
+    def toggle_clicking(self):
+        if self.auto_clicker.clicking:
+            self.auto_clicker.toggle_click(False)
+            self.start_stop_button.setText("Start")
+        else:
+            self.auto_clicker.toggle_click(True)
+            self.start_stop_button.setText("Stop")
+
+    def on_key_press(self, key):
+        try:
+            if key.char == 'p':  # Hotkey to toggle clicking
+                self.toggle_clicking()
+        except AttributeError:
+            pass
+
+    def closeEvent(self, event):
+        # Stop listener and clicking on close
+        self.auto_clicker.toggle_click(False)
+        self.listener.stop()
+        event.accept()
+
+# Run the Application
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = AutoClickerApp()
+    window.show()
+    sys.exit(app.exec_())
